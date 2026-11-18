@@ -15,4 +15,8 @@ For chat, two things change:
   as a global filter. Each chat user then becomes an end user of the service key, on the budget the
   key starts end users on, with their own spend and rate limit.
 
-Not changed yet: the Helm charts under `charts/platform` still deploy LiteLLM and Lago's callback.
+`charts/platform/charts/otari` deploys Otari with the overlay. It is off by default
+(`otari.enabled: false` in `charts/platform/values.yaml`) and runs beside LiteLLM, which stays on.
+Its `values.yaml` lists Public AI's model hosts as Otari hosted providers and the secrets to add
+before turning it on. The image it names is built from `otari/Dockerfile` in the platform repo
+and is not published yet.

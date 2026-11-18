@@ -53,6 +53,10 @@ spec:
             - name: PUBLICAI_TOPUP_URL
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.overlay.stripePaymentProviderCode }}
+            - name: STRIPE_PAYMENT_PROVIDER_CODE
+              value: {{ . | quote }}
+            {{- end }}
             {{- else }}
             # The stock image has no overlay to load.
             - name: OTARI_BOOTSTRAP

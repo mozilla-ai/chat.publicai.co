@@ -24,9 +24,8 @@ app:
     repository: ghcr.io/forpublicai/platform.publicai.co/otari
     tag: "0.51.0"
     pullPolicy: IfNotPresent
-  # Keep at 1 for now: the overlay holds wallet holds and its balance cache in the process.
-  # Rate limits already live in Redis (config.rate_limit_store), so they hold across replicas.
-  replicas: 1
+  # Rate limits and the overlay's wallet holds both live in Redis, so replicas share them.
+  replicas: 2
   minReadySeconds: 10
   terminationGracePeriodSeconds: 30
   port: 8000
@@ -91,6 +90,9 @@ overlay:
   lagoApiBase: "http://platform-api-svc.platform.svc.cluster.local:3000"
   # Where a 402 insufficient_funds response sends the developer to top up.
   topupUrl: ""
+  # Lago's code for the Stripe connection (STRIPE_PAYMENT_PROVIDER_CODE in Zuplo today). Set, each
+  # new customer is created in Stripe and can save a card for paid top-ups.
+  stripePaymentProviderCode: ""
 
 # Outgoing mail (signup verification). Otari sends mail once host and fromEmail are set.
 # smtp_user and smtp_password come from the manual secret as OTARI_SMTP_USER and
