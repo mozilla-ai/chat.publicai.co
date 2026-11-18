@@ -18,6 +18,22 @@ litellm:
   lago:
     enabled: true  # Set to true to enable Lago billing integration
 
+# Otari AI gateway (charts/otari), the replacement being trialed for Zuplo and LiteLLM.
+# Runs beside LiteLLM; nothing routes to it until a client is pointed at it. To point Open WebUI
+# at it, set in the chat values: open-webui.openai.baseUrl:
+#   "http://otari-service.platform.svc.cluster.local:8000/api/v1"
+# (OPENAI_API_BASE_URL in a plain Open WebUI deployment). Enabling it needs, per environment:
+#   otari:
+#     enabled: true
+#     secrets:
+#       manualSecretsName: "staging/aichat/litellm/manual-secrets"  # plus OTARI_MASTER_KEY, OTARI_SECRET_KEY
+#       managedSecretsName: "staging/aichat/open-webui/managed-secrets"
+#       dbPasswordArn: "staging/aichat/database/password"
+#     config:
+#       public_base_url: "https://..."
+otari:
+  enabled: false
+
 # Lago billing platform configuration (official chart)
 lago:
   enabled: true

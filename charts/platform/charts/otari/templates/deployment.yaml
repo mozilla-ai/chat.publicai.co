@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.app.name }}
+  namespace: {{ .Values.global.namespace | default "platform" }}
+spec:
+  replicas: {{ .Values.app.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  progressDeadlineSeconds: 600
+  minReadySeconds: {{ .Values.app.minReadySeconds | default 10 }}
+  selector:
+    matchLabels:
+      app: {{ .Values.app.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.app.name }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.app.terminationGracePeriodSeconds | default 30 }}
+      {{- with .Values.app.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.app.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.app.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.app.name }}
+          image: {{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.name }}
+          env:
+            - name: OTARI_CONFIG_PATH
+              value: /config/config.yml
+            {{- if .Values.overlay.enabled }}
+            - name: LAGO_API_BASE
+              value: {{ .Values.overlay.lagoApiBase | quote }}
+            {{- with .Values.overlay.topupUrl }}
+            - name: PUBLICAI_TOPUP_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- else }}
+            # The stock image has no overlay to load.
+            - name: OTARI_BOOTSTRAP
+              value: ""
+            {{- end }}
+            {{- range $key, $value := .Values.app.extraEnv }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config/config.yml
+              subPath: config.yml
+              readOnly: true
+          {{- with .Values.app.startupProbe }}
+          {{- if .enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .path }}
+              port: http
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
+          {{- end }}
+          {{- with .Values.app.livenessProbe }}
+          {{- if .enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .path }}
+              port: http
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
+          {{- end }}
+          {{- with .Values.app.readinessProbe }}
+          {{- if .enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .path }}
+              port: http
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.app.resources | nindent 12 }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Values.app.name }}-config

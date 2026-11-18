@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.app.name }}-config
+  namespace: {{ .Values.global.namespace | default "platform" }}
+data:
+  config.yml: |
+    {{- with .Values.config }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if and .Values.smtp.host .Values.smtp.fromEmail }}
+    mail_transport: smtp
+    smtp_host: {{ .Values.smtp.host | quote }}
+    smtp_port: {{ .Values.smtp.port }}
+    smtp_tls: {{ .Values.smtp.tls }}
+    mail_from_email: {{ .Values.smtp.fromEmail | quote }}
+    {{- end }}
+    {{- $providers := dict }}
+    {{- range $name, $p := .Values.hostedProviders }}
+      {{- if $p }}
+        {{- $_ := set $providers $name $p }}
+      {{- end }}
+    {{- end }}
+    {{- if $providers }}
+    hosted_providers:
+      {{- range $name, $p := $providers }}
+      {{ $name }}:
+        provider: {{ $p.provider | default "openai" }}
+        api_base: {{ required (printf "hostedProviders.%s.apiBase is required" $name) $p.apiBase | quote }}
+        api_key: {{ printf "${%s}" (required (printf "hostedProviders.%s.apiKeyEnv is required" $name) $p.apiKeyEnv) | quote }}
+      {{- end }}
+    {{- end }}

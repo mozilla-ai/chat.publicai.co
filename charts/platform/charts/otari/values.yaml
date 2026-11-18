@@ -1,0 +1,165 @@
+# Otari: the AI gateway that takes over from Zuplo and LiteLLM on the API path.
+# Prototype: github.com/forpublicai/platform.publicai.co, otari/ (README, config.yml, overlay).
+#
+# Open WebUI points at Otari with the chat chart's openai.baseUrl, which it passes to
+# OPENAI_API_BASE_URLS (charts/chat/charts/open-webui/templates/deployment.yaml). In the
+# chat values for an environment:
+#
+#   open-webui:
+#     openai:
+#       baseUrl: "http://otari-service.platform.svc.cluster.local:8000/api/v1"
+#
+# Its API key is then an Otari service key (one for the whole chat app; each chat user is an
+# end user of it), not the LiteLLM master key.
+
+# Set by the platform chart; the default lets this chart render on its own.
+global:
+  namespace: platform
+
+app:
+  name: otari
+  image:
+    # Built from otari/Dockerfile in platform.publicai.co: mzdotai/otari with the Public AI
+    # overlay (otari_publicai) copied in and OTARI_BOOTSTRAP set. Nothing publishes it yet.
+    repository: ghcr.io/forpublicai/platform.publicai.co/otari
+    tag: "0.51.0"
+    pullPolicy: IfNotPresent
+  # Keep at 1 for now: the overlay holds wallet holds and its balance cache in the process.
+  # Rate limits already live in Redis (config.rate_limit_store), so they hold across replicas.
+  replicas: 1
+  minReadySeconds: 10
+  terminationGracePeriodSeconds: 30
+  port: 8000
+  startupProbe:
+    enabled: true
+    # Migrations run at boot, so give the first start room.
+    path: /api/v1/health/liveness
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 60
+  livenessProbe:
+    enabled: true
+    path: /api/v1/health/liveness
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    enabled: true
+    path: /api/v1/health/readiness
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 200m
+    limits:
+      memory: 1Gi
+      cpu: 1000m
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Plain env vars added to the container, e.g. PUBLICAI_STARTER_CREDIT: "2.00".
+  extraEnv: {}
+
+service:
+  name: otari-service
+  type: ClusterIP
+  port: 8000
+
+# Secrets come from AWS Secrets Manager through External Secrets, as LiteLLM's do
+# (charts/platform/charts/litellm/templates/secrets.yaml). Every property named here must exist
+# in AWS before Otari is enabled, or the ExternalSecret fails to sync.
+secrets:
+  name: otari-secrets
+  # Holds OTARI_MASTER_KEY, OTARI_SECRET_KEY (32 url-safe base64 bytes), LAGO_API_KEY and the
+  # provider keys under hostedProviders. Reusing LiteLLM's manual secret means the provider keys
+  # are already there; only the two OTARI_* entries are new.
+  manualSecretsName: ""
+  # Holds DB_HOST and the Redis URL property below.
+  managedSecretsName: ""
+  dbPasswordArn: ""
+  # Database on the shared RDS instance; the platform db-initializer creates it.
+  dbName: otari
+  # Rate-limit counters. Defaults to the non-cluster ElastiCache LiteLLM uses (same logical DB);
+  # a dedicated OTARI_REDIS_URL in the managed secret would keep them apart.
+  redisUrlProperty: LITELLM_REDIS_URL
+
+# The Public AI overlay: Otari's billing bound to a Lago wallet per organization.
+overlay:
+  enabled: true
+  lagoApiBase: "http://platform-api-svc.platform.svc.cluster.local:3000"
+  # Where a 402 insufficient_funds response sends the developer to top up.
+  topupUrl: ""
+
+# Outgoing mail (signup verification). Otari sends mail once host and fromEmail are set.
+# smtp_user and smtp_password come from the manual secret as OTARI_SMTP_USER and
+# OTARI_SMTP_PASSWORD when credentialsFromSecret is true.
+smtp:
+  host: ""
+  port: 587
+  tls: true
+  fromEmail: ""
+  credentialsFromSecret: false
+
+# Upstream OpenAI-compatible hosts, ported from the active models in the LiteLLM chart
+# (charts/platform/charts/litellm/models). Each becomes a hosted_providers entry with
+# provider openai and its key read from the named env var. Set an entry to null to drop it.
+# Requests name a model as <entry>:<upstream id>, e.g. infomaniak:swiss-ai/Apertus-v1.5-70B.
+# Skipped: Bedrock models (Cohere embed and rerank, mistral-large-3-fallback) and LiteLLM's
+# passthrough endpoints (Cloudflare, Impossibl), which are not chat completions hosts.
+hostedProviders:
+  infomaniak:
+    apiBase: https://api.infomaniak.com/2/ai/106744/openai/v1
+    apiKeyEnv: INFOMANIAK_API_KEY
+  phoeniqs:
+    apiBase: https://maas.phoeniqs.com/v1
+    apiKeyEnv: PHOENIQS_API_KEY
+  featherless:
+    apiBase: https://api.featherless.ai/v1
+    apiKeyEnv: FEATHERLESS_API_KEY
+  blablador:
+    apiBase: https://api.blablador.fz-juelich.de/v1
+    apiKeyEnv: JUELICH_API_KEY
+  plgrid:
+    apiBase: https://llmlab.plgrid.pl/api/v1
+    apiKeyEnv: BIELIK_API_KEY
+  nextbit:
+    apiBase: https://api.nextbit256.com/v1
+    apiKeyEnv: NEXBIT_API_KEY
+  # LiteLLM uses this base without /v1; check it against Sea-Lion's docs before relying on it.
+  sealion:
+    apiBase: https://api.sea-lion.ai
+    apiKeyEnv: SEALION_API_KEY
+  hf-router:
+    apiBase: https://router.huggingface.co/v1
+    apiKeyEnv: HF_TOKEN
+  # LiteLLM's mistral/ models with MISTRAL_API_BASE=https://api.eu.mistral.ai (LiteLLM adds /v1).
+  mistral-eu:
+    apiBase: https://api.eu.mistral.ai/v1
+    apiKeyEnv: MISTRAL_API_KEY
+  scaleway:
+    apiBase: https://api.scaleway.ai/b38146d1-9068-4e88-b3d2-8189ccb794b1/v1
+    apiKeyEnv: SCALEWAY_API_KEY
+  # "openrouter" is reserved for Otari's native OpenRouter provider, hence the suffix.
+  openrouter-api:
+    apiBase: https://openrouter.ai/api/v1
+    apiKeyEnv: OPENROUTER_API_KEY
+
+# Rendered as is into config.yml (OTARI_CONFIG_PATH). Secrets do not go here: the database URL,
+# master key, secret key and Redis URL reach Otari as OTARI_* env vars from the secret above.
+# hosted_providers and the smtp_* settings are rendered from the blocks above.
+config:
+  # Every developer who signs up gets an organization of their own, and so a Lago wallet.
+  open_signup: true
+  # Public URL of this gateway; links in signup mail are built from it. Set per environment.
+  # public_base_url: "https://api.publicai.co"
+  rate_limit_store: redis
+  # Zuplo's free plan limit per key, and a per-user limit for Open WebUI's end users.
+  rate_limits:
+    - name: free-plan
+      per: key
+      rpm: 100
+    - name: chat-users
+      per: user
+      rpm: 30

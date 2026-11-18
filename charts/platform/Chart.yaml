@@ -1,6 +1,6 @@
 apiVersion: v2
 name: platform
-description: Platform services stack including LiteLLM and Lago
+description: Platform services stack including LiteLLM, Lago and Otari
 type: application
 version: 1.0.0
 appVersion: "1.0"
@@ -14,3 +14,7 @@ dependencies:
     version: "1.55.0"
     repository: "file://./charts/lago"
     condition: lago.enabled
+  - name: otari
+    version: "0.1.0"
+    repository: "file://./charts/otari"
+    condition: otari.enabled
