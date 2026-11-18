@@ -57,6 +57,10 @@ spec:
             - name: STRIPE_PAYMENT_PROVIDER_CODE
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.overlay.lagoModels }}
+            - name: PUBLICAI_LAGO_MODELS
+              value: {{ $pairs := list }}{{ range $served, $billed := . }}{{ $pairs = append $pairs (printf "%s=%s" $served $billed) }}{{ end }}{{ join "," $pairs | quote }}
+            {{- end }}
             {{- else }}
             # The stock image has no overlay to load.
             - name: OTARI_BOOTSTRAP

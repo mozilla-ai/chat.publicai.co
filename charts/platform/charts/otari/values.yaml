@@ -93,6 +93,10 @@ overlay:
   # Lago's code for the Stripe connection (STRIPE_PAYMENT_PROVIDER_CODE in Zuplo today). Set, each
   # new customer is created in Stripe and can save a card for paid top-ups.
   stripePaymentProviderCode: ""
+  # Token events go to Lago under the catalog's model names (lago-catalog.yaml), as LiteLLM's
+  # callback sent them. Map a served "provider:model" or "model" whose name differs, e.g.
+  # "infomaniak:swiss-ai/Apertus-70B-Instruct-2509": swiss-ai/apertus-70b-instruct
+  lagoModels: {}
 
 # Outgoing mail (signup verification). Otari sends mail once host and fromEmail are set.
 # smtp_user and smtp_password come from the manual secret as OTARI_SMTP_USER and
