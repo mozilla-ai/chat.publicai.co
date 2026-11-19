@@ -71,6 +71,9 @@ service:
 # in AWS before Otari is enabled, or the ExternalSecret fails to sync.
 secrets:
   name: otari-secrets
+  # false: no ExternalSecret; create a Secret named above with the same keys yourself (a local
+  # cluster has no External Secrets Operator).
+  external: true
   # Holds OTARI_MASTER_KEY, OTARI_SECRET_KEY (32 url-safe base64 bytes), LAGO_API_KEY and the
   # provider keys under hostedProviders. Reusing LiteLLM's manual secret means the provider keys
   # are already there; only the two OTARI_* entries are new.
@@ -161,11 +164,8 @@ config:
   # Public URL of this gateway; links in signup mail are built from it. Set per environment.
   # public_base_url: "https://api.publicai.co"
   rate_limit_store: redis
-  # Zuplo's free plan limit per key, and a per-user limit for Open WebUI's end users.
+  # Per-user limit for Open WebUI's end users. Developer plan limits are the overlay's.
   rate_limits:
-    - name: free-plan
-      per: key
-      rpm: 100
     - name: chat-users
       per: user
       rpm: 30
